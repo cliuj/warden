@@ -96,3 +96,26 @@ button.danger {
   margin-top: 4px;
   font-variant-numeric: tabular-nums;
 }
+
+footer {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+button.ghost {
+  background: transparent;
+  color: inherit;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+}
+
+button.ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#block-status {
+  min-height: 14px;
+  text-align: center;
+  margin-top: 6px;
+}

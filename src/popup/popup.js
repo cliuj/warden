@@ -43,5 +43,42 @@ $("open-options").addEventListener("click", (e) => {
   browser.runtime.openOptionsPage();
 });
 
+async function currentTabHost() {
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.url) return null;
+  try {
+    const u = new URL(tab.url);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    return u.hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
+async function refreshBlockButton() {
+  const btn = $("block-current");
+  const host = await currentTabHost();
+  if (!host) {
+    btn.disabled = true;
+    btn.textContent = "Block current site";
+    return;
+  }
+  const { blocklist } = await browser.runtime.sendMessage({ type: "getStatus" });
+  const already = (blocklist || []).includes(host);
+  btn.disabled = already;
+  btn.textContent = already ? `Already blocking ${host}` : `Block ${host}`;
+}
+
+$("block-current").addEventListener("click", async () => {
+  const host = await currentTabHost();
+  if (!host) return;
+  await browser.runtime.sendMessage({ type: "addToBlocklist", host });
+  const status = $("block-status");
+  status.textContent = `Added ${host} to blocklist`;
+  setTimeout(() => (status.textContent = ""), 2000);
+  refreshBlockButton();
+});
+
 refresh();
+refreshBlockButton();
 setInterval(refresh, 1000);
