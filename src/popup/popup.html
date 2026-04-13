@@ -11,13 +11,17 @@
     </header>
 
     <section id="idle" hidden>
+      <label>Quick start</label>
+      <div id="preset-list" class="chips"></div>
+
       <label>
-        Timebox
+        Custom
         <div class="row">
           <input id="hours" type="number" min="0" max="12" value="4" />
           <span>h</span>
           <input id="minutes" type="number" min="0" max="59" value="0" />
           <span>m</span>
+          <button id="save-preset" class="ghost small" title="Save as preset">+</button>
         </div>
       </label>
       <button id="start" class="primary">Start session</button>

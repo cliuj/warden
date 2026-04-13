@@ -1,4 +1,5 @@
 const $ = (id) => document.getElementById(id);
+const DEFAULT_PRESETS = [60, 120, 240];
 
 function fmt(ms) {
   if (ms < 0) ms = 0;
@@ -6,6 +7,29 @@ function fmt(ms) {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function fmtMinutes(min) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (h && m) return `${h}h ${m}m`;
+  if (h) return `${h}h`;
+  return `${m}m`;
+}
+
+async function getPresets() {
+  const { presets } = await browser.storage.local.get("presets");
+  if (!Array.isArray(presets)) {
+    await browser.storage.local.set({ presets: DEFAULT_PRESETS });
+    return [...DEFAULT_PRESETS];
+  }
+  return presets;
+}
+
+async function setPresets(list) {
+  const sorted = [...new Set(list)].filter((n) => n > 0).sort((a, b) => a - b);
+  await browser.storage.local.set({ presets: sorted });
+  return sorted;
 }
 
 async function refresh() {
@@ -24,6 +48,30 @@ async function refresh() {
   $("total-countdown").textContent = fmt(session.endsAt - Date.now());
 }
 
+async function renderPresets() {
+  const list = $("preset-list");
+  const presets = await getPresets();
+  list.innerHTML = "";
+  if (!presets.length) {
+    const empty = document.createElement("span");
+    empty.className = "empty";
+    empty.textContent = "No presets — use + to save one.";
+    list.appendChild(empty);
+    return;
+  }
+  for (const min of presets) {
+    const chip = document.createElement("button");
+    chip.className = "chip";
+    chip.textContent = fmtMinutes(min);
+    chip.title = `Start a ${fmtMinutes(min)} session`;
+    chip.addEventListener("click", async () => {
+      await browser.runtime.sendMessage({ type: "startSession", totalMs: min * 60 * 1000 });
+      refresh();
+    });
+    list.appendChild(chip);
+  }
+}
+
 $("start").addEventListener("click", async () => {
   const h = parseInt($("hours").value, 10) || 0;
   const m = parseInt($("minutes").value, 10) || 0;
@@ -31,6 +79,16 @@ $("start").addEventListener("click", async () => {
   if (totalMs < 60 * 1000) return;
   await browser.runtime.sendMessage({ type: "startSession", totalMs });
   refresh();
+});
+
+$("save-preset").addEventListener("click", async () => {
+  const h = parseInt($("hours").value, 10) || 0;
+  const m = parseInt($("minutes").value, 10) || 0;
+  const total = h * 60 + m;
+  if (total < 1) return;
+  const presets = await getPresets();
+  if (!presets.includes(total)) await setPresets([...presets, total]);
+  renderPresets();
 });
 
 $("reset").addEventListener("click", async () => {
@@ -79,6 +137,11 @@ $("block-current").addEventListener("click", async () => {
   refreshBlockButton();
 });
 
+browser.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.presets) renderPresets();
+});
+
 refresh();
+renderPresets();
 refreshBlockButton();
 setInterval(refresh, 1000);

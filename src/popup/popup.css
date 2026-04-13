@@ -97,6 +97,43 @@ button.danger {
   font-variant-numeric: tabular-nums;
 }
 
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 10px;
+}
+
+.chip {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  width: auto;
+  margin: 0;
+}
+
+.chip:hover {
+  background: rgba(128, 128, 128, 0.15);
+}
+
+.chips .empty {
+  font-size: 12px;
+  opacity: 0.6;
+  padding: 2px 0;
+}
+
+button.small {
+  padding: 2px 8px;
+  font-size: 14px;
+  line-height: 1;
+  width: auto;
+  margin: 0 0 0 auto;
+}
+
 footer {
   margin-top: 12px;
   padding-top: 10px;

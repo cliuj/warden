@@ -7,20 +7,35 @@
   </head>
   <body>
     <main>
-      <h1>Warden blocklist</h1>
-      <p class="muted">
-        Hostnames entered here are blocked during focus phases. Entries match
-        subdomains too (adding <code>youtube.com</code> also blocks
-        <code>m.youtube.com</code>). Tip: <kbd>Ctrl+Shift+B</kbd> on any tab
-        adds its hostname instantly.
-      </p>
+      <h1>Warden</h1>
 
-      <form id="add-form">
-        <input id="host-input" type="text" placeholder="youtube.com" autofocus />
-        <button type="submit">Add</button>
-      </form>
+      <section>
+        <h2>Timebox presets</h2>
+        <p class="muted">Quick-start durations shown in the popup.</p>
+        <form id="preset-form">
+          <input id="preset-hours" type="number" min="0" max="12" placeholder="h" />
+          <input id="preset-minutes" type="number" min="0" max="59" placeholder="m" />
+          <button type="submit">Add preset</button>
+        </form>
+        <ul id="preset-list"></ul>
+      </section>
 
-      <ul id="list"></ul>
+      <section>
+        <h2>Blocklist</h2>
+        <p class="muted">
+          Hostnames entered here are blocked during focus phases. Entries match
+          subdomains too (adding <code>youtube.com</code> also blocks
+          <code>m.youtube.com</code>). Tip: <kbd>Ctrl+Shift+B</kbd> on any tab
+          adds its hostname instantly.
+        </p>
+
+        <form id="add-form">
+          <input id="host-input" type="text" placeholder="youtube.com" />
+          <button type="submit">Add</button>
+        </form>
+
+        <ul id="list"></ul>
+      </section>
     </main>
     <script src="options.js"></script>
   </body>
