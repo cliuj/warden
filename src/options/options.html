@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Warden — Blocklist</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Warden blocklist</h1>
+      <p class="muted">
+        Hostnames entered here are blocked during focus phases. Entries match
+        subdomains too (adding <code>youtube.com</code> also blocks
+        <code>m.youtube.com</code>). Tip: <kbd>Ctrl+Shift+B</kbd> on any tab
+        adds its hostname instantly.
+      </p>
+
+      <form id="add-form">
+        <input id="host-input" type="text" placeholder="youtube.com" autofocus />
+        <button type="submit">Add</button>
+      </form>
+
+      <ul id="list"></ul>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>

@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Warden</h1>
+      <a id="open-options" href="#">Blocklist</a>
+    </header>
+
+    <section id="idle" hidden>
+      <label>
+        Timebox
+        <div class="row">
+          <input id="hours" type="number" min="0" max="12" value="4" />
+          <span>h</span>
+          <input id="minutes" type="number" min="0" max="59" value="0" />
+          <span>m</span>
+        </div>
+      </label>
+      <button id="start" class="primary">Start session</button>
+    </section>
+
+    <section id="running" hidden>
+      <div id="phase" class="phase">—</div>
+      <div id="phase-countdown" class="big">--:--</div>
+      <div class="muted">
+        Total left: <span id="total-countdown">--:--</span>
+      </div>
+      <button id="reset" class="danger">Reset session</button>
+    </section>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

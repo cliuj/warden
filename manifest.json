@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "Warden",
+  "version": "0.1.0",
+  "description": "Personal productivity timebox with Pomodoro cycles and site blocking.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "warden@cliuj.local",
+      "strict_min_version": "115.0"
+    }
+  },
+  "permissions": [
+    "storage",
+    "alarms",
+    "webRequest",
+    "webRequestBlocking",
+    "notifications",
+    "contextMenus",
+    "tabs"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "scripts": ["src/background.js"]
+  },
+  "action": {
+    "default_title": "Warden",
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "48": "icons/icon.svg",
+      "96": "icons/icon.svg"
+    }
+  },
+  "options_ui": {
+    "page": "src/options/options.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "48": "icons/icon.svg",
+    "96": "icons/icon.svg"
+  },
+  "commands": {
+    "block-current-site": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+B"
+      },
+      "description": "Warden: block the current site"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["src/blocked/blocked.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
