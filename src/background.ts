@@ -1,149 +1,184 @@
-const WORK_MS: number = 25 * 60 * 1000
-const BREAK_MS: number = 5 * 60 * 1000
-const BLOCKED_URL: string = browser.runtime.getURL('src/blocked/blocked.html')
+import {
+  Session,
+  clearSession,
+  resumeSession,
+  persistSession,
+  startSession,
+  getSession,
+  endSession,
+  restoreSession
+} from './background/session'
 
-type Phase = "work" | "break"
+import { normalizeHost } from './utils'
 
-type Session = {
-  startedAt: number
-  endsAt: number
-  phase: Phase
-  phaseEndsAt: number
-}
+import { registerBlocker, unregisterBlocker } from './blocker/blocked'
+import { getBlocklist, addToBlocklist, removeFromBlocklist, restoreBlocklist } from './blocker/blocklist'
+import { handleAlarm, createAlarms, clearAlarms } from './background/alarm'
+import { notify } from './background/notifications'
+
+const initialized = init()
 
 type StoredState = {
-  session?: Session
-  blocklist?: string[]
+  session: Session,
+  blocklist: string[]
 }
+type Message =
+  | { type: "getStatus" }
+  | { type: "startSession"; totalDuration: number }
+  | { type: "resetSession" }
+  | { type: "addToBlocklist"; host: string }
+  | { type: "removeFromBlocklist"; host: string }
 
-let _session: Session | null = null
-let _blocklist: string[] = []
-let _blockerRegistered: boolean = false
-let _hydrate: Promise<void> = hydrate()
 
-async function hydrate(): Promise<void> {
-  const stored: StoredState = await browser.storage.local.get(["session", "blocklist"])
-  _blocklist = stored.blocklist || [];
+browser.alarms.onAlarm.addListener(async alarm => {
+  await initialized
+  await handleAlarm(alarm)
+})
+browser.alarms.create("badge-tick", { periodInMinutes: 1 });
 
-  if (stored.session && stored.session.endsAt > Date.now()) {
-    await resumeSession(stored.session)
-  } else if (stored.session) {
-    await browser.storage.local.remove('session')
-    _session = null;
-  }
-  updateBadge()
-}
+browser.runtime.onStartup.addListener(setupContextMenu)
+browser.runtime.onInstalled.addListener(setupContextMenu)
+browser.runtime.onMessage.addListener(async message => {
+  await initialized
+  return handleMessage(message)
+})
+browser.storage.onChanged.addListener(handleStorageChange)
+browser.commands.onCommand.addListener(handleCommand)
+browser.contextMenus.onClicked.addListener(handleContextMenuOnClick)
 
-async function persistSession(): Promise<void> {
-  if (_session) {
-    await browser.storage.local.set({ session: _session })
-  } else {
-    await browser.storage.local.remove('session')
-  }
-}
-
-async function resumeSession(session: Session): Promise<void> {
-  const now: number = Date.now()
-  const elapsed: number = now - session.startedAt
-  const cycleMs: number = WORK_MS + BREAK_MS
-  const cycleOffset: number = elapsed % cycleMs
-  const inWork: boolean = cycleOffset < WORK_MS
-
-  const phase: Phase = inWork ? 'work' : 'break'
-
-  const phaseStartOffset: number = inWork ? 0 : WORK_MS
-  const phaseMs: number = inWork ? WORK_MS : BREAK_MS
-  const phaseStartedAt: number = session.startedAt + (elapsed - cycleOffset) + phaseStartOffset
-  const phaseEndsAt: number = Math.min(phaseStartedAt + phaseMs, session.endsAt)
-
-  _session = {
-    startedAt: session.startedAt,
-    endsAt: session.endsAt,
-    phase,
-    phaseEndsAt
-  }
-
-  await persistSession()
-  if (phase === "work") {
-    registerBlocker()
-  } else {
-    unregisterBlocker()
-  }
-  scheduleAlarms()
-}
-
-function scheduleAlarms() {
-  browser.alarms.clear("phase")
-  browser.alarms.clear("timebox")
-  if (!_session) {
+async function handleContextMenuOnClick(
+  info: browser.contextMenus.OnClickData,
+  tab?: browser.tabs.Tab
+): Promise<void> {
+  await initialized
+  if (info.menuItemId !== 'warden-block-site') {
     return
   }
-  browser.alarms.create("phase", {
-    when: _session?.phaseEndsAt
-  })
-  browser.alarms.create("timebox", {
-    when: _session?.endsAt
-  })
+
+  const url = info.linkUrl || info.pageUrl || tab?.url;
+  const host = normalizeHost(url ? new URL(url).hostname : "")
+  if (!host) {
+    return
+  }
+  await addToBlocklist(host)
+  notify("Warden", `Blocked: ${host}`)
 }
 
-function blockListener(details: browser.webRequest._OnBeforeRequestDetails): browser.webRequest.BlockingResponse {
-  if (!_session || _session.phase !== "work") {
-    return {}
+async function handleCommand(command: string): Promise<void> {
+  await initialized
+  if (command !== "block-current-site") {
+    return
   }
 
-  function isBlocked(host: string) {
-    const h: string = host.toLowerCase()
-    return _blocklist.some((entry) => h === entry || h.endsWith("." + entry))
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true})
+  if (!tab.url) {
+    return
   }
 
   try {
-    const host: string = new URL(details.url).hostname
-    if (isBlocked(host)) {
-      const q: string = new URLSearchParams({ from: details.url}).toString()
-      return {
-        redirectUrl: `${BLOCKED_URL}?${q}`
-      }
-    }
+    const host = normalizeHost(new URL(tab.url).hostname)
+    await addToBlocklist(host)
+    notify("Warden", `Blocked ${host}`)
   } catch (e) {
 
   }
-  return {};
 }
 
-function registerBlocker() {
-  if (_blockerRegistered) {
+function handleStorageChange(changes: Record<string, browser.storage.StorageChange>, area: string): void {
+  if (area !== "local") {
     return
   }
 
-  browser.webRequest.onBeforeRequest.addListener(
-    blockListener,
-    {
-      urls: ["<all_urls>"],
-      types: ["main_frame"],
-    },
-    ["blocking"]
-  )
-  _blockerRegistered = true
-}
-
-function unregisterBlocker() {
-  if (!_blockerRegistered) {
-    return;
+  if (changes.blocklist) {
+    restoreBlocklist(
+      changes.blocklist.newValue as string[] | undefined
+    )
   }
 
-  browser.webRequest.onBeforeRequest.removeListener(blockListener);
-  _blockerRegistered = false
+  if (changes.session) {
+    const storedSession = changes.session.newValue as Session | undefined
+    restoreSession(storedSession)
+    if (storedSession?.interval.mode === 'focus') {
+      registerBlocker()
+    } else {
+      unregisterBlocker()
+    }
+
+    // updateBadge
+  }
 }
 
-function updateBadge() {
-  if (!_session) {
-    browser.webRequest.onBeforeRequest.removeListener(blockListener)
-    return
-  }
 
-  const mins: number = Math.max(1, Math.ceil((_session.phaseEndsAt - Date.now()) / 60000 ));
-  browser.action.setBadgeText({text: `${mins}m`})
-  browser.action.setBadgeBackgroundColor({
-    color: _session.phase === "work" ? "#c0392b" : "#27ae60"
+
+async function handleMessage(message: Message) {
+  switch(message.type) {
+    case "getStatus":
+      return {
+        session: getSession(),
+        blocklist: getBlocklist(),
+      }
+
+    case "startSession":
+      const session = await startSession(message.totalDuration)
+      await persistSession(session)
+      registerBlocker()
+      createAlarms(session)
+      //updateBadge()
+      notify("Warden", `Session started - ${formatDuration(message.totalDuration)}`)
+      return { ok: true }
+
+    case "resetSession":
+      await endSession()
+      notify("Warden", "Session reset")
+      return { ok: true }
+
+    case "addToBlocklist":
+      await addToBlocklist(message.host)
+      return { ok: true, blocklist: getBlocklist() }
+
+    case "removeFromBlocklist":
+      await removeFromBlocklist(message.host)
+      return { ok: true, blocklist: getBlocklist() }
+  }
+}
+
+function setupContextMenu(): void {
+  browser.contextMenus.removeAll().then(() => {
+    browser.contextMenus.create({
+      id: "warden-block-site",
+      title: "Warden: block this site",
+      contexts: ["page", "link"]
+    })
   })
+}
+
+async function init(): Promise<void>{
+  const stored: StoredState = await browser.storage.local.get(["session", "blocklist"]) as StoredState
+  restoreBlocklist(stored.blocklist)
+
+  // Resume a stored session if one exists (and hasn't been finished)
+  if (stored.session && stored.session.endsAt > Date.now()) {
+    const session = await resumeSession(stored.session)
+    await persistSession(session)
+    const mode = session.interval.mode
+    if (mode === 'focus') {
+      registerBlocker()
+    } else {
+      unregisterBlocker()
+    }
+    await clearAlarms()
+    await createAlarms(session)
+  } else if (stored.session) {
+    await clearSession()
+  } 
+}
+
+
+function formatDuration(ms: number): string {
+  const totalMin = Math.round(ms / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h && m) return `${h}h ${m}m`;
+  if (h) return `${h}h`;
+  return `${m}m`;
 }
